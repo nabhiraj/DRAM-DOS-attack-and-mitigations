@@ -1,0 +1,146 @@
+diff -Naur ./ChampSim_original/inc/dram_controller.h ./ChampSim/inc/dram_controller.h
+--- ./ChampSim_original/inc/dram_controller.h	2018-11-26 20:59:56.496120786 +0530
++++ ./ChampSim/inc/dram_controller.h	2018-11-26 21:54:04.347984000 +0530
+@@ -94,8 +94,8 @@
+          reset_remain_requests(PACKET_QUEUE *queue, uint32_t channel);
+ 
+     uint32_t dram_get_channel(uint64_t address),
+-             dram_get_rank   (uint64_t address),
+-             dram_get_bank   (uint64_t address),
++             dram_get_rank   (uint64_t address,uint32_t cpu),
++             dram_get_bank   (uint64_t address,uint32_t cpu),
+              dram_get_row    (uint64_t address),
+              dram_get_column (uint64_t address),
+              drc_check_hit (uint64_t address, uint32_t cpu, uint32_t channel, uint32_t rank, uint32_t bank, uint32_t row);
+diff -Naur ./ChampSim_original/src/dram_controller.cc ./ChampSim/src/dram_controller.cc
+--- ./ChampSim_original/src/dram_controller.cc	2018-11-26 20:59:56.500120786 +0530
++++ ./ChampSim/src/dram_controller.cc	2018-11-26 21:59:33.211971000 +0530
+@@ -12,8 +12,8 @@
+             uint64_t op_addr = queue->entry[i].address;
+             uint32_t op_cpu = queue->entry[i].cpu,
+                      op_channel = dram_get_channel(op_addr), 
+-                     op_rank = dram_get_rank(op_addr), 
+-                     op_bank = dram_get_bank(op_addr), 
++                     op_rank = dram_get_rank(op_addr,op_cpu),
++                     op_bank = dram_get_bank(op_addr,op_cpu),
+                      op_row = dram_get_row(op_addr);
+ 
+ #ifdef DEBUG_PRINT
+@@ -122,6 +122,7 @@
+ void MEMORY_CONTROLLER::schedule(PACKET_QUEUE *queue)
+ {
+     uint64_t read_addr;
++    uint32_t cpu;
+     uint32_t read_channel, read_rank, read_bank, read_row;
+     uint8_t  row_buffer_hit = 0;
+ 
+@@ -139,10 +140,10 @@
+         read_addr = queue->entry[i].address;
+         if (read_addr == 0) 
+             continue;
+-
++        cpu = queue->entry[i].cpu;
+         read_channel = dram_get_channel(read_addr);
+-        read_rank = dram_get_rank(read_addr);
+-        read_bank = dram_get_bank(read_addr);
++        read_rank = dram_get_rank(read_addr,cpu);
++        read_bank = dram_get_bank(read_addr,cpu);
+ 
+         // bank is busy
+         if (bank_request[read_channel][read_rank][read_bank].working) { // should we check this or not? how do we know if bank is busy or not for all requests in the queue?
+@@ -196,9 +197,10 @@
+                 continue;
+ 
+             // bank is busy
++            cpu = queue->entry[i].cpu;
+             read_channel = dram_get_channel(read_addr);
+-            read_rank = dram_get_rank(read_addr);
+-            read_bank = dram_get_bank(read_addr);
++            read_rank = dram_get_rank(read_addr,cpu);
++            read_bank = dram_get_bank(read_addr,cpu);
+             if (bank_request[read_channel][read_rank][read_bank].working) 
+                 continue;
+ 
+@@ -225,8 +227,8 @@
+         uint64_t op_addr = queue->entry[oldest_index].address;
+         uint32_t op_cpu = queue->entry[oldest_index].cpu,
+                  op_channel = dram_get_channel(op_addr), 
+-                 op_rank = dram_get_rank(op_addr), 
+-                 op_bank = dram_get_bank(op_addr), 
++                 op_rank = dram_get_rank(op_addr,op_cpu),
++                 op_bank = dram_get_bank(op_addr,op_cpu),
+                  op_row = dram_get_row(op_addr);
+ #ifdef DEBUG_PRINT
+         uint32_t op_column = dram_get_column(op_addr);
+@@ -282,8 +284,8 @@
+     uint64_t op_addr = queue->entry[request_index].address;
+     uint32_t op_cpu = queue->entry[request_index].cpu,
+              op_channel = dram_get_channel(op_addr), 
+-             op_rank = dram_get_rank(op_addr), 
+-             op_bank = dram_get_bank(op_addr);
++             op_rank = dram_get_rank(op_addr,op_cpu),
++             op_bank = dram_get_bank(op_addr,op_cpu);
+ #ifdef DEBUG_PRINT
+     uint32_t op_row = dram_get_row(op_addr), 
+              op_column = dram_get_column(op_addr);
+@@ -634,14 +636,27 @@
+     return (uint32_t) (address >> shift) & (DRAM_CHANNELS - 1);
+ }
+ 
+-uint32_t MEMORY_CONTROLLER::dram_get_bank(uint64_t address)
++uint32_t MEMORY_CONTROLLER::dram_get_bank(uint64_t address,uint32_t cpu)
+ {
++	//uint32_t bank_modified;
+     if (LOG2_DRAM_BANKS == 0)
+         return 0;
+ 
+-    int shift = LOG2_DRAM_CHANNELS;
++     int shift = LOG2_DRAM_CHANNELS;
+ 
++    //int shift = LOG2_DRAM_COLUMNS + LOG2_DRAM_BANKS + LOG2_DRAM_CHANNELS;
+     return (uint32_t) (address >> shift) & (DRAM_BANKS - 1);
++/*
++    bank_modified = (address >> shift) & (DRAM_BANKS - 1); //Added As part of PA3
++    if(cpu==0)
++    	return (uint32_t)(bank_modified%4);
++    if(cpu==1)
++        return uint32_t(bank_modified%4)+4;
++    else
++    {
++    	cout<<"reached else in bank"<<endl;
++    	return (uint32_t) (address >> shift) & (DRAM_BANKS - 1);
++    }*/
+ }
+ 
+ uint32_t MEMORY_CONTROLLER::dram_get_column(uint64_t address)
+@@ -654,14 +669,28 @@
+     return (uint32_t) (address >> shift) & (DRAM_COLUMNS - 1);
+ }
+ 
+-uint32_t MEMORY_CONTROLLER::dram_get_rank(uint64_t address)
++uint32_t MEMORY_CONTROLLER::dram_get_rank(uint64_t address,uint32_t cpu)
+ {
++	uint32_t rank_modified;
+     if (LOG2_DRAM_RANKS == 0)
+         return 0;
+ 
+     int shift = LOG2_DRAM_COLUMNS + LOG2_DRAM_BANKS + LOG2_DRAM_CHANNELS;
+ 
+-    return (uint32_t) (address >> shift) & (DRAM_RANKS - 1);
++    rank_modified = (address >> shift) & (DRAM_RANKS - 1);//Added as part of PA3
++    if(cpu==0)
++        return (uint32_t)(rank_modified%4);
++    if(cpu==1)
++        return uint32_t(rank_modified%4)+4;
++    else
++        {
++        	cout<<"reached else in rank"<<endl;
++        	return (uint32_t) (address >> shift) & (DRAM_RANKS - 1);
++        }
++
++    //int shift = LOG2_DRAM_CHANNELS;
++
++    //return (uint32_t) (address >> shift) & (DRAM_RANKS - 1);
+ }
+ 
+ uint32_t MEMORY_CONTROLLER::dram_get_row(uint64_t address)

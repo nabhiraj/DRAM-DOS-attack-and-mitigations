@@ -1,0 +1,75 @@
+diff -Naur ./ChampSim_original/inc/dram_controller.h ./ChampSim/inc/dram_controller.h
+--- ./ChampSim_original/inc/dram_controller.h	2018-11-26 20:59:56.496120786 +0530
++++ ./ChampSim/inc/dram_controller.h	2018-11-26 21:54:04.347984000 +0530
+@@ -94,8 +94,8 @@
+          reset_remain_requests(PACKET_QUEUE *queue, uint32_t channel);
+ 
+     uint32_t dram_get_channel(uint64_t address),
+-             dram_get_rank   (uint64_t address),
+-             dram_get_bank   (uint64_t address),
++             dram_get_rank   (uint64_t address,uint32_t cpu),
++             dram_get_bank   (uint64_t address,uint32_t cpu),
+              dram_get_row    (uint64_t address),
+              dram_get_column (uint64_t address),
+              drc_check_hit (uint64_t address, uint32_t cpu, uint32_t channel, uint32_t rank, uint32_t bank, uint32_t row);
+diff -Naur ./ChampSim_original/src/dram_controller.cc ./ChampSim/src/dram_controller.cc
+--- ./ChampSim_original/src/dram_controller.cc	2018-11-26 20:59:56.500120786 +0530
++++ ./ChampSim/src/dram_controller.cc	2018-11-27 14:28:02.063697000 +0530
+@@ -12,8 +12,8 @@
+             uint64_t op_addr = queue->entry[i].address;
+             uint32_t op_cpu = queue->entry[i].cpu,
+                      op_channel = dram_get_channel(op_addr), 
+-                     op_rank = dram_get_rank(op_addr), 
+-                     op_bank = dram_get_bank(op_addr), 
++                     op_rank = dram_get_rank(op_addr),
++                     op_bank = dram_get_bank(op_addr),
+                      op_row = dram_get_row(op_addr);
+ 
+ #ifdef DEBUG_PRINT
+@@ -127,7 +127,7 @@
+ 
+     int oldest_index = -1;
+     uint64_t oldest_cycle = UINT64_MAX;
+-
++/*														//Removed Open page policy as part of PA3
+     // first, search for the oldest open row hit
+     for (uint32_t i=0; i<queue->SIZE; i++) {
+ 
+@@ -168,7 +168,7 @@
+             cout << " swrites: " << scheduled_writes[channel] << " sreads: " << scheduled_reads[channel];
+             cout << " write: " << +bank_request[read_channel][read_rank][read_bank].is_write << " read: " << +bank_request[read_channel][read_rank][read_bank].is_read << hex;
+             cout << " address: " << queue->entry[i].address << dec << " channel: " << read_channel << " rank: " << read_rank << " bank: " << read_bank << endl; });
+-            */
++
+ 
+             continue;
+         }
+@@ -179,7 +179,7 @@
+             oldest_index = i;
+             row_buffer_hit = 1;
+         }	  
+-    }
++    }*/
+ 
+     if (oldest_index == -1) { // no matching open_row (row buffer miss)
+ 
+@@ -225,8 +225,8 @@
+         uint64_t op_addr = queue->entry[oldest_index].address;
+         uint32_t op_cpu = queue->entry[oldest_index].cpu,
+                  op_channel = dram_get_channel(op_addr), 
+-                 op_rank = dram_get_rank(op_addr), 
+-                 op_bank = dram_get_bank(op_addr), 
++                 op_rank = dram_get_rank(op_addr),
++                 op_bank = dram_get_bank(op_addr),
+                  op_row = dram_get_row(op_addr);
+ #ifdef DEBUG_PRINT
+         uint32_t op_column = dram_get_column(op_addr);
+@@ -282,7 +282,7 @@
+     uint64_t op_addr = queue->entry[request_index].address;
+     uint32_t op_cpu = queue->entry[request_index].cpu,
+              op_channel = dram_get_channel(op_addr), 
+-             op_rank = dram_get_rank(op_addr), 
++             op_rank = dram_get_rank(op_addr),
+              op_bank = dram_get_bank(op_addr);
+ #ifdef DEBUG_PRINT
+     uint32_t op_row = dram_get_row(op_addr), 

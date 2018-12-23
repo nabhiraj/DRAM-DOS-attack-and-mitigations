@@ -1,0 +1,8 @@
+these patches are to be applied on champsim
+
+patch -p2 < ../bank.patch
+patch -p2 < ../BaRaCoRoCh.patch
+patch -p2 < ../nonopenpage.patch
+patch -p2 < ../rank.patch
+patch -p2 < ../RoBaRaCoCh.patch
+
